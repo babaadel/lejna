@@ -35,6 +35,9 @@ th,td{padding:8px 4px;border-top:1px solid var(--line);text-align:start;font-siz
 thead th{border-top:0;color:var(--mute);font-weight:500}
 tfoot th{font-weight:700}
 .num{direction:ltr;text-align:end}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px 4px;background:transparent;color:var(--main);border:1px solid var(--line)}
+.tabs button[aria-selected=true]{background:var(--main);color:var(--main-ink);border-color:var(--main)}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -64,6 +67,13 @@ tfoot th{font-weight:700}
     <input id="sm" type="month" dir="ltr">
   </div>
 
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-don" aria-selected="true">المتبرعون</button>
+    <button role="tab" id="tab-acc" aria-selected="false">الحساب</button>
+    <button role="tab" id="tab-ben" aria-selected="false">المستفيدون</button>
+  </nav>
+
+  <div id="pane-don">
   <div class="box">
     <h2>المتبرعون</h2>
     <div class="tw"><table>
@@ -78,7 +88,9 @@ tfoot th{font-weight:700}
     <p class="err" id="derr"></p>
     <button id="btnDon">إضافة متبرع</button>
   </div>
+  </div>
 
+  <div id="pane-acc" hidden>
   <div class="box">
     <h2>الحساب</h2>
     <div class="srow"><span>مجموع التبرعات</span><b id="s1"></b></div>
@@ -86,7 +98,9 @@ tfoot th{font-weight:700}
     <div class="srow"><span>الباقي</span><b id="s3"></b></div>
     <small id="s4" class="bad"></small>
   </div>
+  </div>
 
+  <div id="pane-ben" hidden>
   <div class="box">
     <h2>المستفيدون</h2>
     <label for="nm">الاسم</label>
@@ -97,6 +111,7 @@ tfoot th{font-weight:700}
     <button id="btnAdd">إضافة مستفيد</button>
   </div>
   <div id="blist"></div>
+  </div>
 </section>
 
 <section id="detail" hidden>
@@ -158,6 +173,14 @@ function td(c, cls) {
   return x;
 }
 function tr(...cells) { const r = el('tr'); cells.forEach(c => r.appendChild(c)); return r; }
+
+function showTab(t) {
+  ['don', 'acc', 'ben'].forEach(k => {
+    $('pane-' + k).hidden = k !== t;
+    $('tab-' + k).setAttribute('aria-selected', k === t);
+  });
+}
+['don', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
 
 /* الدخول */
 auth.onAuthStateChanged(user => {
@@ -246,7 +269,7 @@ function openDetail(id) {
   window.scrollTo(0, 0);
   renderDetail();
 }
-function back() { cur = null; $('detail').hidden = true; $('app').hidden = false; }
+function back() { cur = null; $('detail').hidden = true; $('app').hidden = false; showTab('ben'); }
 $('btnBack').onclick = back;
 
 function renderDetail() {
