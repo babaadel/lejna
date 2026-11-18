@@ -39,6 +39,9 @@ tfoot th{font-weight:700}
 .tabs button{flex:1;padding:10px 4px;background:transparent;color:var(--main);border:1px solid var(--line)}
 .tabs button[aria-selected=true]{background:var(--main);color:var(--main-ink);border-color:var(--main)}
 h3{font-size:1rem;margin:14px 0 4px}
+#rbody{background:#fff;color:#000;padding:6px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+table.sheet{border-collapse:collapse;width:100%}
+table.sheet td{border:1px solid #000;padding:6px 4px;text-align:center;font-weight:700}
 [hidden]{display:none!important}
 @media print{
 :root{--bg:#fff;--card:#fff;--ink:#000;--mute:#333;--line:#999;--main:#000;--bad:#000}
@@ -338,49 +341,51 @@ function renderDetail() {
 
 /* التقرير */
 const sumAmt = a => a.reduce((t, x) => t + (Number(x.amount) || 0), 0);
-function tbl(heads, rows, foot) {
-  const t = el('table'), h = el('thead'), hr = el('tr');
-  heads.forEach(x => hr.appendChild(el('th', x)));
-  h.appendChild(hr); t.appendChild(h);
-  const b = el('tbody');
-  rows.forEach(r => b.appendChild(tr(...r.map((c, i) => td(String(c), i ? 'num' : undefined)))));
-  t.appendChild(b);
-  if (foot) {
-    const f = el('tfoot');
-    f.appendChild(tr(...foot.map((c, i) => el('th', String(c), i ? 'num' : undefined))));
-    t.appendChild(f);
-  }
-  return t;
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'ماي', 'يونيو', 'يوليو', 'أغشت', 'شتمبر', 'أكتوبر', 'نوفمبر', 'دجمبر'];
+const PCOL = ['#e6a0e0', '#f4b183', '#b4c6e7', '#ffe699', '#c5e0b4'];
+const plain = n => String(Number(n) || 0);
+function cell(text, bg, o = {}) {
+  const c = el('td', text, o.num ? 'num' : undefined);
+  c.style.background = bg;
+  if (o.color) c.style.color = o.color;
+  if (o.span) c.colSpan = o.span;
+  if (o.big) c.style.fontSize = '1.25rem';
+  if (o.h) c.style.height = o.h;
+  return c;
 }
 function buildReport() {
   const R = $('rbody'); R.textContent = '';
-  const D = sumAmt(donors), P = sumAmt(pharms), M = sumMeds(meds);
-  const none = t => el('p', t, 'empty');
-  R.append(el('h1', 'تقرير لجنة الأدوية المزمنة'), el('p', 'الشهر: ' + month(), 'sum'));
+  const D = sumAmt(donors), P = sumAmt(pharms), rem = D - P;
+  const mi = parseInt(month().slice(5, 7), 10) - 1;
+  const half = Math.ceil(donors.length / 2);
+  const right = donors.slice(0, half), left = donors.slice(half);
+  const GREEN = '#92d050', YEL = '#ffff00', ORG = '#ed7d31', GOLD = '#ffc000', PUR = '#7030a0', BLUE = '#00b0f0', W = '#fff';
+  const t = el('table', undefined, 'sheet');
 
-  R.append(el('h2', 'المتبرعون'),
-    donors.length ? tbl(['الاسم', 'المبلغ'], donors.map(d => [d.name, fmt(d.amount)]), ['المجموع', fmt(D)]) : none('لا يوجد متبرعون.'));
+  t.appendChild(tr(cell('تبرعات شهر ' + (MONTHS[mi] || month()), '#4ea72e', { span: 4 })));
+  t.appendChild(tr(cell('', W, { span: 4 })));
+  t.appendChild(tr(cell('الاسم', GOLD), cell('المبلغ', PUR, { color: W }), cell('الاسم', GOLD), cell('المبلغ', PUR, { color: W })));
+  for (let i = 0; i < half; i++) {
+    const a = right[i], b = left[i];
+    t.appendChild(tr(
+      cell(a ? a.name : '', W), cell(a ? plain(a.amount) : '', W, { num: true }),
+      cell(b ? b.name : '', W), cell(b ? plain(b.amount) : '', W, { num: true })
+    ));
+  }
+  t.appendChild(tr(cell('المجموع', YEL), cell(plain(sumAmt(right)), ORG, { num: true }),
+    cell('المجموع', YEL), cell(plain(sumAmt(left)), ORG, { num: true })));
 
-  R.append(el('h2', 'الصيدليات'),
-    pharms.length ? tbl(['الصيدلية', 'المبلغ'], pharms.map(p => [p.name, fmt(p.amount)]), ['المجموع', fmt(P)]) : none('لم تُسجَّل صيدليات.'));
+  const line = (label, value, lbg, vbg) =>
+    t.appendChild(tr(cell(label, lbg), cell(plain(value), vbg, { span: 3, num: true })));
+  line('مجموع التبرعات', D, YEL, GREEN);
+  pharms.forEach((p, i) => line(p.name, p.amount, PCOL[i % PCOL.length], PCOL[i % PCOL.length]));
+  line('المبلغ المدفوع', P, '#c5e5f5', '#c5e5f5');
+  line('الباقي بعد العملية', rem, YEL, GREEN);
 
-  R.append(el('h2', 'الحساب'),
-    tbl(['البند', 'المبلغ'], [['مجموع التبرعات', fmt(D)], ['المدفوع للصيدليات', fmt(P)], ['الباقي', fmt(D - P)]]));
-  if (D - P < 0) R.append(el('p', 'عجز هذا الشهر، يُغطّى من فائض اللجنة.'));
-
-  R.append(el('h2', 'أدوية المستفيدين'));
-  let any = false;
-  bens.forEach(b => {
-    const mine = meds.filter(x => x.beneficiaryId === b.id);
-    if (!mine.length) return;
-    any = true;
-    R.append(el('h3', b.name),
-      tbl(['الدواء', 'الكمية', 'السعر', 'المجموع'],
-        mine.map(m => [m.drugName, m.qty, fmt(m.price), fmt(lineTotal(m))]),
-        ['المجموع', '', '', fmt(sumMeds(mine))]));
-  });
-  if (!any) R.append(none('لا توجد أدوية مسجلة.'));
-  else R.append(el('p', 'مجموع قيمة الأدوية المسجلة: ' + fmt(M), 'sum'));
+  t.appendChild(tr(cell('لقد تمت العملية بنجاح والحمد لله من قبل ومن بعد', BLUE, { span: 4 })));
+  if (rem < 0) t.appendChild(tr(cell('ملاحظة: لقد تم تسديد المبلغ الباقي من الفائض المالي الموجود عند اللجنة',
+    BLUE, { span: 4, color: YEL, big: true, h: '90px' })));
+  R.appendChild(t);
 }
 $('btnReport').onclick = () => { buildReport(); $('app').hidden = true; $('report').hidden = false; window.scrollTo(0, 0); };
 $('btnRBack').onclick = () => { $('report').hidden = true; $('app').hidden = false; };
