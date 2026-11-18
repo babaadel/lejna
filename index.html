@@ -14,6 +14,9 @@ main{max-width:560px;margin:0 auto;padding:16px}
 h1{font-size:1.4rem;margin:8px 0 16px}
 h2{font-size:1.1rem;margin:0 0 4px}
 .acts{display:flex;gap:6px}
+.srow{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.ok{color:var(--main);font-weight:700}
+.sum{font-weight:700;margin:10px 0 4px}
 .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
 label{display:block;font-weight:500;margin:10px 0 4px}
 input,textarea{width:100%;padding:11px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
@@ -57,6 +60,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px soli
     <textarea id="nt" rows="2"></textarea>
     <p class="err" id="aerr"></p>
     <button id="btnAdd">إضافة مستفيد</button>
+  </div>
+  <div class="box">
+    <h2>كشف الشهر</h2>
+    <label for="sm">الشهر</label>
+    <input id="sm" type="month" dir="ltr">
+    <p class="sum" id="sum"></p>
+    <div id="stat"></div>
   </div>
   <div id="list"></div>
 </section>
@@ -113,6 +123,7 @@ auth.onAuthStateChanged(user => {
   $('app').hidden = !user;
   $('detail').hidden = true;
   stopDetail();
+  if (unM) { unM(); unM = null; }
   if (unsub) { unsub(); unsub = null; }
   if (user) listen();
 });
@@ -144,6 +155,48 @@ $('btnAdd').onclick = async () => {
     $('aerr').textContent = 'تعذّر الحفظ. تحقق من الاتصال والصلاحيات.';
   }
 };
+
+let bens = [], monthBuys = {}, unM = null;
+
+function watchMonth() {
+  if (unM) unM();
+  const m = $('sm').value;
+  if (!m) return;
+  unM = db.collection('purchases').where('month', '==', m).onSnapshot(snap => {
+    monthBuys = {};
+    snap.forEach(d => {
+      const x = d.data();
+      const old = monthBuys[x.beneficiaryId];
+      if (!old || (x.deliveredAt && !old.deliveredAt)) monthBuys[x.beneficiaryId] = x;
+    });
+    renderStatus();
+  });
+}
+$('sm').onchange = watchMonth;
+
+function renderStatus() {
+  const L = $('stat');
+  L.textContent = '';
+  const labels = ['لم يُسجَّل شراء', 'لم يُسلَّم بعد', '✓ تم التسليم'];
+  const stateOf = b => { const p = monthBuys[b.id]; return !p ? 0 : (p.deliveredAt ? 2 : 1); };
+  const act = bens.filter(b => b.active !== false)
+    .sort((a, b) => stateOf(a) - stateOf(b) || a.name.localeCompare(b.name, 'ar'));
+  let done = 0;
+  act.forEach(b => {
+    const st = stateOf(b);
+    if (st === 2) done++;
+    const r = document.createElement('div');
+    r.className = 'srow';
+    const n = document.createElement('span');
+    n.textContent = b.name;
+    const t = document.createElement('span');
+    t.textContent = labels[st];
+    if (st === 2) t.className = 'ok';
+    r.append(n, t);
+    L.appendChild(r);
+  });
+  $('sum').textContent = act.length ? 'سُلّم ' + done + ' من ' + act.length : '';
+}
 
 let cur = null, unD = [];
 function stopDetail() { unD.forEach(f => f()); unD = []; cur = null; }
@@ -258,7 +311,11 @@ $('btnBuy').onclick = async () => {
 };
 
 function listen() {
+  if (!$('sm').value) $('sm').value = new Date().toISOString().slice(0, 7);
+  watchMonth();
   unsub = db.collection('beneficiaries').orderBy('name').onSnapshot(snap => {
+    bens = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderStatus();
     const list = $('list');
     list.textContent = '';
     if (snap.empty) {
