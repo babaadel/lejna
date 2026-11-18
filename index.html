@@ -92,10 +92,25 @@ tfoot th{font-weight:700}
 
   <div id="pane-acc" hidden>
   <div class="box">
+    <h2>الصيدليات</h2>
+    <div class="tw"><table>
+      <thead><tr><th>الصيدلية</th><th>المبلغ</th><th></th></tr></thead>
+      <tbody id="ptb"></tbody>
+      <tfoot><tr><th>المجموع</th><th class="num" id="ptot"></th><th></th></tr></tfoot>
+    </table></div>
+    <label for="pn">اسم الصيدلية</label>
+    <input id="pn">
+    <label for="pa">المبلغ المدفوع</label>
+    <input id="pa" type="number" inputmode="decimal" dir="ltr">
+    <p class="err" id="perr"></p>
+    <button id="btnPh">إضافة صيدلية</button>
+  </div>
+  <div class="box">
     <h2>الحساب</h2>
     <div class="srow"><span>مجموع التبرعات</span><b id="s1"></b></div>
-    <div class="srow"><span>مجموع الأدوية المشتراة</span><b id="s2"></b></div>
+    <div class="srow"><span>المدفوع للصيدليات</span><b id="s2"></b></div>
     <div class="srow"><span>الباقي</span><b id="s3"></b></div>
+    <div class="srow"><span>قيمة أدوية المستفيدين المسجلة</span><b id="s5"></b></div>
     <small id="s4" class="bad"></small>
   </div>
   </div>
@@ -158,7 +173,7 @@ const stamp = () => firebase.firestore.FieldValue.serverTimestamp();
 const lineTotal = m => (Number(m.qty) || 0) * (Number(m.price) || 0);
 const sumMeds = a => a.reduce((t, x) => t + lineTotal(x), 0);
 const month = () => $('sm').value;
-let bens = [], donors = [], meds = [], cur = null, unsub = [], unM = [];
+let bens = [], donors = [], meds = [], pharms = [], cur = null, unsub = [], unM = [];
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -210,7 +225,7 @@ function start() {
   watchMonth();
 }
 function watchMonth() {
-  unM.forEach(f => f()); unM = []; donors = []; meds = [];
+  unM.forEach(f => f()); unM = []; donors = []; meds = []; pharms = [];
   render();
   const m = month();
   if (!m) return;
@@ -223,6 +238,11 @@ function watchMonth() {
     meds = s.docs.map(d => ({ ref: d.ref, ...d.data() }));
     render();
   }));
+  unM.push(db.collection('pharmacies').where('month', '==', m).onSnapshot(s => {
+    pharms = s.docs.map(d => ({ ref: d.ref, ...d.data() }))
+      .sort((a, b) => (a.createdAt?.seconds || 1e12) - (b.createdAt?.seconds || 1e12));
+    render();
+  }));
 }
 $('sm').onchange = watchMonth;
 
@@ -230,6 +250,7 @@ $('sm').onchange = watchMonth;
 function render() {
   const D = donors.reduce((t, x) => t + (Number(x.amount) || 0), 0);
   const M = sumMeds(meds);
+  const P = pharms.reduce((t, x) => t + (Number(x.amount) || 0), 0);
 
   const T = $('dtb'); T.textContent = '';
   donors.forEach(d => T.appendChild(tr(
@@ -239,9 +260,18 @@ function render() {
   if (!donors.length) T.appendChild(tr(td('لا يوجد متبرعون في هذا الشهر.')));
   $('dtot').textContent = fmt(D);
 
-  const R = D - M;
+  const PT = $('ptb'); PT.textContent = '';
+  pharms.forEach(p => PT.appendChild(tr(
+    td(p.name), td(fmt(p.amount), 'num'),
+    td(btn('حذف', () => { if (confirm('حذف ' + p.name + '؟')) p.ref.delete(); }))
+  )));
+  if (!pharms.length) PT.appendChild(tr(td('لم تُسجَّل صيدليات في هذا الشهر.')));
+  $('ptot').textContent = fmt(P);
+
+  const R = D - P;
   $('s1').textContent = fmt(D);
-  $('s2').textContent = fmt(M);
+  $('s2').textContent = fmt(P);
+  $('s5').textContent = fmt(M);
   $('s3').textContent = fmt(R);
   $('s3').className = R < 0 ? 'bad' : 'ok';
   $('s4').textContent = R < 0 ? 'عجز هذا الشهر، يُغطّى من فائض اللجنة.' : '';
@@ -297,6 +327,17 @@ $('btnDon').onclick = async () => {
     $('dn').value = $('da').value = '';
     $('dn').focus();
   } catch (e) { $('derr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
+};
+
+$('btnPh').onclick = async () => {
+  const name = $('pn').value.trim(), amount = parseFloat($('pa').value);
+  $('perr').textContent = '';
+  if (!name || isNaN(amount)) { $('perr').textContent = 'اكتب اسم الصيدلية والمبلغ.'; return; }
+  try {
+    await db.collection('pharmacies').add({ month: month(), name, amount, createdAt: stamp() });
+    $('pn').value = $('pa').value = '';
+    $('pn').focus();
+  } catch (e) { $('perr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
 
 $('btnAdd').onclick = async () => {
