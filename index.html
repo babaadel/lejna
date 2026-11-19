@@ -42,7 +42,7 @@ h3{font-size:1rem;margin:14px 0 4px}
 #rbody{background:#fff;color:#000;padding:6px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 table.sheet{border-collapse:collapse;width:100%}
 table.sheet td{border:1px solid #000;padding:6px 4px;text-align:center;font-weight:700}
-body.viewer .edit-only{display:none!important}
+body.viewer .edit-only,body.viewer .admin-only{display:none!important}
 [hidden]{display:none!important}
 @media print{
 :root{--bg:#fff;--card:#fff;--ink:#000;--mute:#333;--line:#999;--main:#000;--bad:#000}
@@ -54,7 +54,7 @@ tr{break-inside:avoid}
 }
 </style>
 </head>
-<body>
+<body class="viewer">
 <main>
 
 <section id="login" hidden>
@@ -65,22 +65,15 @@ tr{break-inside:avoid}
     <label for="pw">كلمة السر</label>
     <input id="pw" type="password" autocomplete="current-password" dir="ltr">
     <p class="err" id="lerr"></p>
-    <button id="btnLogin">دخول</button>
-  </div>
-</section>
-
-<section id="noaccess" hidden>
-  <h1>لا توجد صلاحية</h1>
-  <div class="box">
-    <p>حسابك غير مسجَّل في اللجنة بعد. اطلب من المشرف إضافتك.</p>
-    <button class="ghost" id="btnOut2">خروج</button>
+    <div class="acts"><button id="btnLogin">دخول</button><button class="ghost" id="btnLoginBack">رجوع</button></div>
   </div>
 </section>
 
 <section id="app" hidden>
   <div class="bar">
     <h1>لجنة الأدوية المزمنة</h1>
-    <button class="ghost" id="btnOut">خروج</button>
+    <button class="ghost" id="btnOut" hidden>خروج</button>
+    <button class="ghost" id="btnShowLogin">دخول المشرف</button>
   </div>
 
   <div class="box">
@@ -91,7 +84,7 @@ tr{break-inside:avoid}
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-don" aria-selected="true">المتبرعون</button>
     <button role="tab" id="tab-acc" aria-selected="false">الحساب</button>
-    <button role="tab" id="tab-ben" aria-selected="false">المستفيدون</button>
+    <button role="tab" id="tab-ben" class="admin-only" aria-selected="false">المستفيدون</button>
   </nav>
 
   <div id="pane-don">
@@ -135,13 +128,13 @@ tr{break-inside:avoid}
     <div class="srow"><span>مجموع التبرعات</span><b id="s1"></b></div>
     <div class="srow"><span>المدفوع للصيدليات</span><b id="s2"></b></div>
     <div class="srow"><span>الباقي</span><b id="s3"></b></div>
-    <div class="srow"><span>قيمة أدوية المستفيدين المسجلة</span><b id="s5"></b></div>
+    <div class="srow admin-only"><span>قيمة أدوية المستفيدين المسجلة</span><b id="s5"></b></div>
     <small id="s4" class="bad"></small>
   </div>
   <button id="btnReport">تقرير الشهر (PDF)</button>
   </div>
 
-  <div id="pane-ben" hidden>
+  <div id="pane-ben" class="admin-only" hidden>
   <div class="box">
     <h2>المستفيدون</h2>
     <div class="edit-only">
@@ -260,39 +253,45 @@ function showTab(t) {
 ['don', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
 
 /* الدخول */
+let adminMode = false;
 auth.onAuthStateChanged(user => {
-  $('login').hidden = !!user;
-  $('app').hidden = true;
-  $('noaccess').hidden = true;
+  stop();
+  $('login').hidden = true;
   $('detail').hidden = true;
   $('report').hidden = true;
-  stop();
-  if (user) start(user);
+  $('app').hidden = false;
+  $('btnOut').hidden = !user;
+  $('btnShowLogin').hidden = !!user;
+  start(user);
 });
+$('btnShowLogin').onclick = () => { $('app').hidden = true; $('login').hidden = false; };
+$('btnLoginBack').onclick = () => { $('login').hidden = true; $('app').hidden = false; };
 $('btnLogin').onclick = async () => {
   $('lerr').textContent = '';
   try { await auth.signInWithEmailAndPassword($('em').value.trim(), $('pw').value); }
   catch (e) { $('lerr').textContent = 'البريد أو كلمة السر غير صحيحة.'; }
 };
 $('btnOut').onclick = () => auth.signOut();
-$('btnOut2').onclick = () => auth.signOut();
 
 function stop() {
   unsub.forEach(f => f()); unM.forEach(f => f());
   unsub = []; unM = []; cur = null;
+  bens = []; donors = []; meds = []; pharms = [];
 }
 async function start(user) {
-  let role = null;
-  try {
-    const r = await db.collection('users').doc((user.email || '').toLowerCase()).get();
-    role = r.exists ? r.data().role : null;
-  } catch (e) { role = null; }
-  if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
-  if (role !== 'admin' && role !== 'viewer') { $('noaccess').hidden = false; return; }
-  document.body.classList.toggle('viewer', role !== 'admin');
-  $('app').hidden = false;
+  let admin = false;
+  if (user) {
+    try {
+      const r = await db.collection('users').doc((user.email || '').toLowerCase()).get();
+      admin = r.exists && r.data().role === 'admin';
+    } catch (e) { admin = false; }
+    if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+  }
+  adminMode = admin;
+  document.body.classList.toggle('viewer', !admin);
+  if (!admin) showTab('don');
   if (!month()) $('sm').value = new Date().toISOString().slice(0, 7);
-  unsub.push(db.collection('beneficiaries').orderBy('name').onSnapshot(s => {
+  if (admin) unsub.push(db.collection('beneficiaries').orderBy('name').onSnapshot(s => {
     bens = s.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
     render();
   }, () => { $('blist').textContent = 'تعذّر تحميل المستفيدين.'; }));
@@ -308,7 +307,7 @@ function watchMonth() {
       .sort((a, b) => (a.createdAt?.seconds || 1e12) - (b.createdAt?.seconds || 1e12));
     render();
   }));
-  unM.push(db.collection('medications').where('month', '==', m).onSnapshot(s => {
+  if (adminMode) unM.push(db.collection('medications').where('month', '==', m).onSnapshot(s => {
     meds = s.docs.map(d => ({ ref: d.ref, ...d.data() }));
     render();
   }));
