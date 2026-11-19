@@ -47,6 +47,8 @@ summary{cursor:pointer;font-weight:700;color:var(--main);padding:10px 0}
 .box p{margin:6px 0}
 ul{padding-inline-start:20px;margin:6px 0}
 li{margin:4px 0}
+button.ghost.danger{color:var(--bad);border-color:var(--bad);margin-top:10px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--main);color:var(--main-ink);padding:10px 20px;border-radius:999px;font-weight:700;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.3)}
 .logo{width:40px;height:40px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-inline-end:8px}
 .hero{display:block;width:100%;max-width:320px;margin:0 auto 12px;border-radius:10px}
 a{color:var(--main);font-weight:700}
@@ -169,6 +171,7 @@ tr{break-inside:avoid}
       <p class="err" id="bmsg"></p>
       <button id="btnBulk">إضافة القائمة</button>
     </details>
+    <button class="ghost danger edit-only" id="btnDelAll">حذف كل متبرعي هذا الشهر</button>
   </div>
   </div>
 
@@ -194,7 +197,6 @@ tr{break-inside:avoid}
     <div class="srow"><span>مجموع التبرعات</span><b id="s1"></b></div>
     <div class="srow"><span>المدفوع للصيدليات</span><b id="s2"></b></div>
     <div class="srow"><span>الباقي</span><b id="s3"></b></div>
-    <div class="srow admin-only"><span>قيمة أدوية المستفيدين المسجلة</span><b id="s5"></b></div>
     <small id="s4" class="bad"></small>
   </div>
   <button id="btnReport">تقرير الشهر (PDF)</button>
@@ -252,6 +254,8 @@ tr{break-inside:avoid}
 
 </main>
 
+<div id="toast" class="toast" hidden></div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -265,6 +269,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore();
 const $ = id => document.getElementById(id);
+let toastT;
+function toast(t) {
+  const e = $('toast'); e.textContent = t; e.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { e.hidden = true; }, 2400);
+}
 $('logo').src = document.querySelector('link[rel=apple-touch-icon]').href;
 const fmt = n => Number(n || 0).toLocaleString('en');
 const stamp = () => firebase.firestore.FieldValue.serverTimestamp();
@@ -389,7 +398,6 @@ $('sm').onchange = watchMonth;
 /* العرض */
 function render() {
   const D = donors.reduce((t, x) => t + (Number(x.amount) || 0), 0);
-  const M = sumMeds(meds);
   const P = pharms.reduce((t, x) => t + (Number(x.amount) || 0), 0);
 
   const T = $('dtb'); T.textContent = '';
@@ -411,7 +419,6 @@ function render() {
   const R = D - P;
   $('s1').textContent = fmt(D);
   $('s2').textContent = fmt(P);
-  $('s5').textContent = fmt(M);
   $('s3').textContent = fmt(R);
   $('s3').className = R < 0 ? 'bad' : 'ok';
   $('s4').textContent = R < 0 ? 'عجز هذا الشهر، يُغطّى من فائض اللجنة.' : '';
@@ -514,9 +521,11 @@ $('btnDon').onclick = async () => {
   const name = $('dn').value.trim(), amount = parseFloat($('da').value);
   $('derr').textContent = '';
   if (!name || isNaN(amount)) { $('derr').textContent = 'اكتب اسم المتبرع والمبلغ.'; return; }
+  if (!confirm('تأكيد الحفظ:\nالمتبرع: ' + name + '\nالمبلغ: ' + fmt(amount))) return;
   try {
     await db.collection('donations').add({ month: month(), name, amount, createdAt: stamp() });
     $('dn').value = $('da').value = '';
+    toast('تم حفظ المتبرع ✓');
     $('dn').focus();
   } catch (e) { $('derr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
@@ -559,18 +568,36 @@ $('btnBulk').onclick = async () => {
       await b.commit();
     }
     $('bulk').value = '';
+    toast('تمت إضافة ' + ok.length + ' متبرع ✓');
     msg.className = 'ok';
     msg.textContent = 'تمت إضافة ' + ok.length + ' متبرع.' + (bad.length ? ' تم تخطي: ' + bad.slice(0, 5).join(' | ') : '');
   } catch (e) { msg.textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
+};
+
+$('btnDelAll').onclick = async () => {
+  if (!donors.length) { alert('لا يوجد متبرعون في هذا الشهر.'); return; }
+  const list = donors.slice(), n = list.length;
+  if (!confirm('سيتم حذف ' + n + ' متبرع من شهر ' + month() + ' نهائياً. هل أنت متأكد؟')) return;
+  if (!confirm('تأكيد أخير: لا يمكن التراجع عن الحذف. حذف جميع المتبرعين؟')) return;
+  try {
+    for (let i = 0; i < list.length; i += 400) {
+      const b = db.batch();
+      list.slice(i, i + 400).forEach(d => b.delete(d.ref));
+      await b.commit();
+    }
+    toast('تم حذف ' + n + ' متبرع');
+  } catch (e) { alert('تعذّر الحذف. تحقق من الاتصال.'); }
 };
 
 $('btnPh').onclick = async () => {
   const name = $('pn').value.trim(), amount = parseFloat($('pa').value);
   $('perr').textContent = '';
   if (!name || isNaN(amount)) { $('perr').textContent = 'اكتب اسم الصيدلية والمبلغ.'; return; }
+  if (!confirm('تأكيد الحفظ:\nالصيدلية: ' + name + '\nالمبلغ المدفوع: ' + fmt(amount))) return;
   try {
     await db.collection('pharmacies').add({ month: month(), name, amount, createdAt: stamp() });
     $('pn').value = $('pa').value = '';
+    toast('تم حفظ الصيدلية ✓');
     $('pn').focus();
   } catch (e) { $('perr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
@@ -579,9 +606,11 @@ $('btnAdd').onclick = async () => {
   const name = $('nm').value.trim();
   $('aerr').textContent = '';
   if (!name) { $('aerr').textContent = 'اكتب اسم المستفيد أولاً.'; return; }
+  if (!confirm('تأكيد الحفظ:\nالمستفيد: ' + name)) return;
   try {
     await db.collection('beneficiaries').add({ name, notes: $('nt').value.trim(), active: true, createdAt: stamp() });
     $('nm').value = $('nt').value = '';
+    toast('تم حفظ المستفيد ✓');
   } catch (e) { $('aerr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
 
@@ -589,9 +618,11 @@ $('btnMed').onclick = async () => {
   const drugName = $('mn').value.trim(), qty = parseFloat($('mq').value), price = parseFloat($('mp').value);
   $('merr').textContent = '';
   if (!drugName || !(qty > 0) || isNaN(price)) { $('merr').textContent = 'اكتب اسم الدواء والكمية والسعر.'; return; }
+  if (!confirm('تأكيد الحفظ:\nالدواء: ' + drugName + '\nالكمية: ' + qty + '\nسعر الوحدة: ' + fmt(price))) return;
   try {
     await db.collection('medications').add({ beneficiaryId: cur, month: month(), drugName, qty, price, createdAt: stamp() });
     $('mn').value = $('mq').value = $('mp').value = '';
+    toast('تم حفظ الدواء ✓');
     $('mn').focus();
   } catch (e) { $('merr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
