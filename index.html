@@ -22,7 +22,7 @@ button.sm{padding:6px 10px;font-size:.9rem}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--main);outline-offset:2px}
 .bar,.row,.srow{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .row b{display:block}.row small{color:var(--mute)}
-.acts{display:flex;gap:6px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
 .srow{padding:8px 0;border-top:1px solid var(--line)}
 .srow:first-of-type{border-top:0}
 .err{color:var(--bad);min-height:1.6em;margin:8px 0 0}
@@ -42,6 +42,7 @@ h3{font-size:1rem;margin:14px 0 4px}
 #rbody{background:#fff;color:#000;padding:6px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 table.sheet{border-collapse:collapse;width:100%}
 table.sheet td{border:1px solid #000;padding:6px 4px;text-align:center;font-weight:700}
+body.viewer .edit-only{display:none!important}
 [hidden]{display:none!important}
 @media print{
 :root{--bg:#fff;--card:#fff;--ink:#000;--mute:#333;--line:#999;--main:#000;--bad:#000}
@@ -65,6 +66,14 @@ tr{break-inside:avoid}
     <input id="pw" type="password" autocomplete="current-password" dir="ltr">
     <p class="err" id="lerr"></p>
     <button id="btnLogin">دخول</button>
+  </div>
+</section>
+
+<section id="noaccess" hidden>
+  <h1>لا توجد صلاحية</h1>
+  <div class="box">
+    <p>حسابك غير مسجَّل في اللجنة بعد. اطلب من المشرف إضافتك.</p>
+    <button class="ghost" id="btnOut2">خروج</button>
   </div>
 </section>
 
@@ -93,12 +102,14 @@ tr{break-inside:avoid}
       <tbody id="dtb"></tbody>
       <tfoot><tr><th>المجموع</th><th class="num" id="dtot"></th><th></th></tr></tfoot>
     </table></div>
+    <div class="edit-only">
     <label for="dn">اسم المتبرع</label>
     <input id="dn">
     <label for="da">المبلغ</label>
     <input id="da" type="number" inputmode="decimal" dir="ltr">
     <p class="err" id="derr"></p>
     <button id="btnDon">إضافة متبرع</button>
+    </div>
   </div>
   </div>
 
@@ -110,12 +121,14 @@ tr{break-inside:avoid}
       <tbody id="ptb"></tbody>
       <tfoot><tr><th>المجموع</th><th class="num" id="ptot"></th><th></th></tr></tfoot>
     </table></div>
+    <div class="edit-only">
     <label for="pn">اسم الصيدلية</label>
     <input id="pn">
     <label for="pa">المبلغ المدفوع</label>
     <input id="pa" type="number" inputmode="decimal" dir="ltr">
     <p class="err" id="perr"></p>
     <button id="btnPh">إضافة صيدلية</button>
+    </div>
   </div>
   <div class="box">
     <h2>الحساب</h2>
@@ -131,12 +144,14 @@ tr{break-inside:avoid}
   <div id="pane-ben" hidden>
   <div class="box">
     <h2>المستفيدون</h2>
+    <div class="edit-only">
     <label for="nm">الاسم</label>
     <input id="nm">
     <label for="nt">ملاحظات</label>
     <textarea id="nt" rows="2"></textarea>
     <p class="err" id="aerr"></p>
     <button id="btnAdd">إضافة مستفيد</button>
+    </div>
   </div>
   <div id="blist"></div>
   </div>
@@ -163,6 +178,7 @@ tr{break-inside:avoid}
       <tbody id="mtb"></tbody>
       <tfoot><tr><th colspan="3">مجموع الأدوية</th><th class="num" id="mtot"></th><th></th></tr></tfoot>
     </table></div>
+    <div class="edit-only">
     <label for="mn">اسم الدواء</label>
     <input id="mn">
     <label for="mq">الكمية</label>
@@ -171,6 +187,7 @@ tr{break-inside:avoid}
     <input id="mp" type="number" inputmode="decimal" dir="ltr">
     <p class="err" id="merr"></p>
     <button id="btnMed">إضافة دواء</button>
+    </div>
   </div>
 </section>
 
@@ -208,6 +225,30 @@ function td(c, cls) {
   if (typeof c !== 'string') x.appendChild(c);
   return x;
 }
+const DF = [{ key: 'name', label: 'اسم المتبرع', req: true }, { key: 'amount', label: 'المبلغ', num: true }];
+const PF = [{ key: 'name', label: 'اسم الصيدلية', req: true }, { key: 'amount', label: 'المبلغ المدفوع', num: true }];
+const BF = [{ key: 'name', label: 'اسم المستفيد', req: true }, { key: 'notes', label: 'ملاحظات' }];
+const MF = [{ key: 'drugName', label: 'اسم الدواء', req: true }, { key: 'qty', label: 'الكمية', num: true, pos: true }, { key: 'price', label: 'سعر الوحدة', num: true }];
+
+async function edit(ref, d, fields) {
+  const upd = {};
+  for (const f of fields) {
+    const v = prompt(f.label, d[f.key] ?? '');
+    if (v === null) return;
+    const t = v.trim();
+    if (f.num) {
+      const n = parseFloat(t);
+      if (isNaN(n) || (f.pos && n <= 0)) { alert('قيمة غير صالحة.'); return; }
+      upd[f.key] = n;
+    } else {
+      if (f.req && !t) { alert('هذا الحقل مطلوب.'); return; }
+      upd[f.key] = t;
+    }
+  }
+  try { await ref.update(upd); } catch (e) { alert('تعذّر الحفظ. تحقق من الاتصال.'); }
+}
+function actCell(...btns) { const d = el('div', undefined, 'acts edit-only'); btns.forEach(b => d.appendChild(b)); return d; }
+
 function tr(...cells) { const r = el('tr'); cells.forEach(c => r.appendChild(c)); return r; }
 
 function showTab(t) {
@@ -221,11 +262,12 @@ function showTab(t) {
 /* الدخول */
 auth.onAuthStateChanged(user => {
   $('login').hidden = !!user;
-  $('app').hidden = !user;
+  $('app').hidden = true;
+  $('noaccess').hidden = true;
   $('detail').hidden = true;
   $('report').hidden = true;
   stop();
-  if (user) start();
+  if (user) start(user);
 });
 $('btnLogin').onclick = async () => {
   $('lerr').textContent = '';
@@ -233,12 +275,22 @@ $('btnLogin').onclick = async () => {
   catch (e) { $('lerr').textContent = 'البريد أو كلمة السر غير صحيحة.'; }
 };
 $('btnOut').onclick = () => auth.signOut();
+$('btnOut2').onclick = () => auth.signOut();
 
 function stop() {
   unsub.forEach(f => f()); unM.forEach(f => f());
   unsub = []; unM = []; cur = null;
 }
-function start() {
+async function start(user) {
+  let role = null;
+  try {
+    const r = await db.collection('users').doc((user.email || '').toLowerCase()).get();
+    role = r.exists ? r.data().role : null;
+  } catch (e) { role = null; }
+  if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+  if (role !== 'admin' && role !== 'viewer') { $('noaccess').hidden = false; return; }
+  document.body.classList.toggle('viewer', role !== 'admin');
+  $('app').hidden = false;
   if (!month()) $('sm').value = new Date().toISOString().slice(0, 7);
   unsub.push(db.collection('beneficiaries').orderBy('name').onSnapshot(s => {
     bens = s.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
@@ -277,7 +329,7 @@ function render() {
   const T = $('dtb'); T.textContent = '';
   donors.forEach(d => T.appendChild(tr(
     td(d.name), td(fmt(d.amount), 'num'),
-    td(btn('حذف', () => { if (confirm('حذف ' + d.name + '؟')) d.ref.delete(); }))
+    td(actCell(btn('تعديل', () => edit(d.ref, d, DF)), btn('حذف', () => { if (confirm('حذف ' + d.name + '؟')) d.ref.delete(); })))
   )));
   if (!donors.length) T.appendChild(tr(td('لا يوجد متبرعون في هذا الشهر.')));
   $('dtot').textContent = fmt(D);
@@ -285,7 +337,7 @@ function render() {
   const PT = $('ptb'); PT.textContent = '';
   pharms.forEach(p => PT.appendChild(tr(
     td(p.name), td(fmt(p.amount), 'num'),
-    td(btn('حذف', () => { if (confirm('حذف ' + p.name + '؟')) p.ref.delete(); }))
+    td(actCell(btn('تعديل', () => edit(p.ref, p, PF)), btn('حذف', () => { if (confirm('حذف ' + p.name + '؟')) p.ref.delete(); })))
   )));
   if (!pharms.length) PT.appendChild(tr(td('لم تُسجَّل صيدليات في هذا الشهر.')));
   $('ptot').textContent = fmt(P);
@@ -305,8 +357,8 @@ function render() {
     const info = el('div');
     info.append(el('b', b.name), el('small', [b.notes, mine.length ? mine.length + ' دواء - ' + fmt(sumMeds(mine)) : 'لا أدوية هذا الشهر'].filter(Boolean).join(' - ')));
     const acts = el('div', undefined, 'acts');
-    acts.append(btn('فتح', () => openDetail(b.id), 'sm'),
-      btn('حذف', () => { if (confirm('حذف ' + b.name + '؟')) b.ref.delete(); }));
+    acts.append(btn('فتح', () => openDetail(b.id), 'sm'), btn('تعديل', () => edit(b.ref, b, BF), 'ghost sm edit-only'),
+      btn('حذف', () => { if (confirm('حذف ' + b.name + '؟')) b.ref.delete(); }, 'ghost sm edit-only'));
     const box = el('div', undefined, 'box row');
     box.append(info, acts);
     L.appendChild(box);
@@ -333,7 +385,7 @@ function renderDetail() {
   const T = $('mtb'); T.textContent = '';
   mine.forEach(m => T.appendChild(tr(
     td(m.drugName), td(String(m.qty), 'num'), td(fmt(m.price), 'num'), td(fmt(lineTotal(m)), 'num'),
-    td(btn('حذف', () => { if (confirm('حذف ' + m.drugName + '؟')) m.ref.delete(); }))
+    td(actCell(btn('تعديل', () => edit(m.ref, m, MF)), btn('حذف', () => { if (confirm('حذف ' + m.drugName + '؟')) m.ref.delete(); })))
   )));
   if (!mine.length) T.appendChild(tr(td('لا توجد أدوية لهذا الشهر.')));
   $('mtot').textContent = fmt(sumMeds(mine));
