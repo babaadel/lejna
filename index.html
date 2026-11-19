@@ -39,6 +39,13 @@ tfoot th{font-weight:700}
 .tabs button{flex:1;padding:10px 4px;background:transparent;color:var(--main);border:1px solid var(--line)}
 .tabs button[aria-selected=true]{background:var(--main);color:var(--main-ink);border-color:var(--main)}
 h3{font-size:1rem;margin:14px 0 4px}
+summary{cursor:pointer;font-weight:700;color:var(--main);padding:10px 0}
+.q{border-inline-start:3px solid var(--main);padding:4px 12px;margin:12px 0;font-size:1.08rem;line-height:2}
+.q small{display:block;color:var(--mute);font-size:.85rem;line-height:1.5}
+.box p{margin:6px 0}
+ul{padding-inline-start:20px;margin:6px 0}
+li{margin:4px 0}
+a{color:var(--main);font-weight:700}
 #rbody{background:#fff;color:#000;padding:6px;border-radius:8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 table.sheet{border-collapse:collapse;width:100%}
 table.sheet td{border:1px solid #000;padding:6px 4px;text-align:center;font-weight:700}
@@ -82,12 +89,59 @@ tr{break-inside:avoid}
   </div>
 
   <nav class="tabs" role="tablist">
-    <button role="tab" id="tab-don" aria-selected="true">المتبرعون</button>
+    <button role="tab" id="tab-about" aria-selected="true">عن اللجنة</button>
+    <button role="tab" id="tab-don" aria-selected="false">المتبرعون</button>
     <button role="tab" id="tab-acc" aria-selected="false">الحساب</button>
     <button role="tab" id="tab-ben" class="admin-only" aria-selected="false">المستفيدون</button>
   </nav>
 
-  <div id="pane-don">
+  <div id="pane-about">
+  <div class="box">
+    <h2>عن اللجنة</h2>
+    <p>لجنة تطوعية تسعى إلى مساعدة المرضى المصابين بأمراض مزمنة بتوفير أدويتهم الشهرية، وذلك بما يجود به أهل الخير من تبرعات.</p>
+  </div>
+  <div class="box">
+    <h2>دور اللجنة</h2>
+    <ul>
+      <li>جمع التبرعات من المحسنين كل شهر.</li>
+      <li>تحديد الأدوية التي يحتاجها كل مستفيد وكمياتها.</li>
+      <li>شراء الأدوية من الصيدليات وتسديد أثمانها.</li>
+      <li>عرض حساب كل شهر بالتفصيل ليطّلع عليه الجميع.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>الشفافية والخصوصية</h2>
+    <p>قائمة المتبرعين وحساب كل شهر معروضان لكل زائر، ليطمئن المتبرعون إلى أن أموالهم وصلت إلى موضعها. أما أسماء المستفيدين وأدويتهم فيحفظها مشرف اللجنة وحده، صوناً لكرامتهم وخصوصيتهم.</p>
+  </div>
+  <div class="box">
+    <h2>فضل التطوع والصدقة ومؤازرة المحتاجين</h2>
+    <p>حثّ القرآن الكريم والسنة النبوية على التعاون على الخير، والإنفاق في سبيل الله، ومواساة أصحاب الحاجة. ومما ورد في ذلك:</p>
+    <div class="q">﴿وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ﴾<small>سورة المائدة، الآية 2</small></div>
+    <div class="q">﴿مَثَلُ الَّذِينَ يُنْفِقُونَ أَمْوَالَهُمْ فِي سَبِيلِ اللَّهِ كَمَثَلِ حَبَّةٍ أَنْبَتَتْ سَبْعَ سَنَابِلَ فِي كُلِّ سُنْبُلَةٍ مِائَةُ حَبَّةٍ ۗ وَاللَّهُ يُضَاعِفُ لِمَنْ يَشَاءُ ۗ وَاللَّهُ وَاسِعٌ عَلِيمٌ﴾<small>سورة البقرة، الآية 261</small></div>
+    <div class="q">﴿لَنْ تَنَالُوا الْبِرَّ حَتَّىٰ تُنْفِقُوا مِمَّا تُحِبُّونَ ۚ وَمَا تُنْفِقُوا مِنْ شَيْءٍ فَإِنَّ اللَّهَ بِهِ عَلِيمٌ﴾<small>سورة آل عمران، الآية 92</small></div>
+    <div class="q">﴿فَمَنْ يَعْمَلْ مِثْقَالَ ذَرَّةٍ خَيْرًا يَرَهُ﴾<small>سورة الزلزلة، الآية 7</small></div>
+    <div class="q">«مَنْ نَفَّسَ عَنْ مُؤْمِنٍ كُرْبَةً مِنْ كُرَبِ الدُّنْيَا نَفَّسَ اللَّهُ عَنْهُ كُرْبَةً مِنْ كُرَبِ يَوْمِ الْقِيَامَةِ، وَمَنْ يَسَّرَ عَلَى مُعْسِرٍ يَسَّرَ اللَّهُ عَلَيْهِ فِي الدُّنْيَا وَالْآخِرَةِ، وَاللَّهُ فِي عَوْنِ الْعَبْدِ مَا كَانَ الْعَبْدُ فِي عَوْنِ أَخِيهِ»<small>رواه مسلم</small></div>
+    <div class="q">«مَا نَقَصَتْ صَدَقَةٌ مِنْ مَالٍ»<small>رواه مسلم</small></div>
+    <div class="q">«الْمُؤْمِنُ لِلْمُؤْمِنِ كَالْبُنْيَانِ يَشُدُّ بَعْضُهُ بَعْضًا»<small>متفق عليه</small></div>
+    <div class="q">«مَا مِنْ يَوْمٍ يُصْبِحُ الْعِبَادُ فِيهِ إِلَّا مَلَكَانِ يَنْزِلَانِ، فَيَقُولُ أَحَدُهُمَا: اللَّهُمَّ أَعْطِ مُنْفِقًا خَلَفًا، وَيَقُولُ الْآخَرُ: اللَّهُمَّ أَعْطِ مُمْسِكًا تَلَفًا»<small>متفق عليه</small></div>
+  </div>
+  <div class="box">
+    <h2>شاركنا الخير</h2>
+    <p>كل مبلغ، مهما قلّ، له أثر في الخير. يمكنك التبرع عبر:</p>
+    <ul>
+      <li>بنكيلي: <bdi dir="ltr">38033220</bdi></li>
+      <li>السداد: <bdi dir="ltr">38033220</bdi></li>
+      <li>مصرفي: <bdi dir="ltr">26432278</bdi></li>
+    </ul>
+    <p>للتواصل مع المشرفين عبر واتساب:</p>
+    <ul>
+      <li><a href="https://wa.me/22226468188" target="_blank" rel="noopener"><bdi dir="ltr">26468188</bdi></a></li>
+      <li><a href="https://wa.me/22226432278" target="_blank" rel="noopener"><bdi dir="ltr">26432278</bdi></a></li>
+    </ul>
+  </div>
+  </div>
+
+  <div id="pane-don" hidden>
   <div class="box">
     <h2>المتبرعون</h2>
     <div class="tw"><table>
@@ -103,6 +157,13 @@ tr{break-inside:avoid}
     <p class="err" id="derr"></p>
     <button id="btnDon">إضافة متبرع</button>
     </div>
+    <details class="edit-only">
+      <summary>إضافة عدة متبرعين دفعة واحدة</summary>
+      <label for="bulk">الصق القائمة: في كل سطر الاسم ثم المبلغ</label>
+      <textarea id="bulk" rows="8" placeholder="أحمد 1000&#10;محمد 2000"></textarea>
+      <p class="err" id="bmsg"></p>
+      <button id="btnBulk">إضافة القائمة</button>
+    </details>
   </div>
   </div>
 
@@ -245,12 +306,12 @@ function actCell(...btns) { const d = el('div', undefined, 'acts edit-only'); bt
 function tr(...cells) { const r = el('tr'); cells.forEach(c => r.appendChild(c)); return r; }
 
 function showTab(t) {
-  ['don', 'acc', 'ben'].forEach(k => {
+  ['about', 'don', 'acc', 'ben'].forEach(k => {
     $('pane-' + k).hidden = k !== t;
     $('tab-' + k).setAttribute('aria-selected', k === t);
   });
 }
-['don', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
+['about', 'don', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
 
 /* الدخول */
 let adminMode = false;
@@ -289,7 +350,7 @@ async function start(user) {
   }
   adminMode = admin;
   document.body.classList.toggle('viewer', !admin);
-  if (!admin) showTab('don');
+  showTab(admin ? 'don' : 'about');
   if (!month()) $('sm').value = new Date().toISOString().slice(0, 7);
   if (admin) unsub.push(db.collection('beneficiaries').orderBy('name').onSnapshot(s => {
     bens = s.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
@@ -452,6 +513,49 @@ $('btnDon').onclick = async () => {
     $('dn').value = $('da').value = '';
     $('dn').focus();
   } catch (e) { $('derr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
+};
+
+function parseDonors(text) {
+  const ok = [], bad = [];
+  text.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).split(/\r?\n/).forEach(raw => {
+    const line = raw.replace(/\t/g, ' ').trim();
+    if (!line) return;
+    let name, amt;
+    let m = line.match(/^(.+?)[\s,;،:\-]+(\d+(?:\.\d+)?)$/);
+    if (m) { name = m[1]; amt = m[2]; }
+    else {
+      m = line.match(/^(\d+(?:\.\d+)?)[\s,;،:\-]+(.+)$/);
+      if (m) { amt = m[1]; name = m[2]; }
+    }
+    if (!name || !name.trim() || amt === undefined) { bad.push(line); return; }
+    ok.push({ name: name.trim(), amount: parseFloat(amt) });
+  });
+  return { ok, bad };
+}
+
+$('btnBulk').onclick = async () => {
+  const { ok, bad } = parseDonors($('bulk').value);
+  const msg = $('bmsg');
+  msg.className = 'err'; msg.textContent = '';
+  if (!ok.length) { msg.textContent = 'لم أجد أسطراً صالحة. اكتب في كل سطر: الاسم ثم المبلغ.'; return; }
+  const total = ok.reduce((t, x) => t + x.amount, 0);
+  const q = 'سيتم إضافة ' + ok.length + ' متبرع بمجموع ' + fmt(total) + ' إلى شهر ' + month() +
+    (bad.length ? ' (وسيُتخطى ' + bad.length + ' سطر غير مفهوم)' : '') + '. متابعة؟';
+  if (!confirm(q)) return;
+  try {
+    const base = Date.now();
+    for (let i = 0; i < ok.length; i += 400) {
+      const b = db.batch();
+      ok.slice(i, i + 400).forEach((x, k) => b.set(db.collection('donations').doc(), {
+        month: month(), name: x.name, amount: x.amount,
+        createdAt: firebase.firestore.Timestamp.fromMillis(base + i + k)
+      }));
+      await b.commit();
+    }
+    $('bulk').value = '';
+    msg.className = 'ok';
+    msg.textContent = 'تمت إضافة ' + ok.length + ' متبرع.' + (bad.length ? ' تم تخطي: ' + bad.slice(0, 5).join(' | ') : '');
+  } catch (e) { msg.textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
 };
 
 $('btnPh').onclick = async () => {
