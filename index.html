@@ -38,7 +38,7 @@ thead th{border-top:0;color:var(--mute);font-weight:500}
 tfoot th{font-weight:700}
 .num{direction:ltr;text-align:end}
 .tabs{display:flex;gap:6px;margin-bottom:12px}
-.tabs button{flex:1;padding:10px 4px;background:transparent;color:var(--main);border:1px solid var(--line)}
+.tabs button{flex:1;min-width:0;white-space:nowrap;font-size:.85rem;padding:10px 2px;background:transparent;color:var(--main);border:1px solid var(--line)}
 .tabs button[aria-selected=true]{background:var(--main);color:var(--main-ink);border-color:var(--main)}
 h3{font-size:1rem;margin:14px 0 4px}
 summary{cursor:pointer;font-weight:700;color:var(--main);padding:10px 0}
@@ -97,6 +97,7 @@ tr{break-inside:avoid}
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-about" aria-selected="true">عن اللجنة</button>
     <button role="tab" id="tab-don" aria-selected="false">المتبرعون</button>
+    <button role="tab" id="tab-res" class="admin-only" aria-selected="false">الاحتياطي</button>
     <button role="tab" id="tab-acc" aria-selected="false">الحساب</button>
     <button role="tab" id="tab-ben" class="admin-only" aria-selected="false">المستفيدون</button>
   </nav>
@@ -172,6 +173,33 @@ tr{break-inside:avoid}
       <button id="btnBulk">إضافة القائمة</button>
     </details>
     <button class="ghost danger edit-only" id="btnDelAll">حذف كل متبرعي هذا الشهر</button>
+  </div>
+  </div>
+
+  <div id="pane-res" class="admin-only" hidden>
+  <div class="box">
+    <h2>المبلغ الاحتياطي</h2>
+    <p class="sum">المتبقي في الاحتياطي: <span id="rtot"></span></p>
+    <p>أسماء المتبرعين بالاحتياطي. في كل شهر يظهر اسم كل واحد منهم في قائمة المتبرعين بمبلغه الشهري، ويُخصم المبلغ من رصيده تلقائياً.</p>
+    <div class="tw"><table>
+      <thead><tr><th>الاسم</th><th>الرصيد</th><th>شهرياً</th><th></th></tr></thead>
+      <tbody id="rtb"></tbody>
+    </table></div>
+    <p class="sum" id="rstat"></p>
+    <div class="edit-only">
+      <div class="acts">
+        <button id="btnResApply">تطبيق على هذا الشهر</button>
+        <button class="ghost danger" id="btnResUndo">تراجع عن تطبيق هذا الشهر</button>
+      </div>
+      <label for="rn">اسم المتبرع</label>
+      <input id="rn">
+      <label for="ra">المبلغ المودَع في الاحتياطي</label>
+      <input id="ra" type="number" inputmode="decimal" dir="ltr">
+      <label for="rm">المبلغ الشهري</label>
+      <input id="rm" type="number" inputmode="decimal" dir="ltr" value="2000">
+      <p class="err" id="rerr"></p>
+      <button id="btnRes">إضافة إلى الاحتياطي</button>
+    </div>
   </div>
   </div>
 
@@ -280,7 +308,7 @@ const stamp = () => firebase.firestore.FieldValue.serverTimestamp();
 const lineTotal = m => (Number(m.qty) || 0) * (Number(m.price) || 0);
 const sumMeds = a => a.reduce((t, x) => t + lineTotal(x), 0);
 const month = () => $('sm').value;
-let bens = [], donors = [], meds = [], pharms = [], cur = null, unsub = [], unM = [];
+let bens = [], donors = [], meds = [], pharms = [], reserve = [], runExists = false, runLoaded = false, applying = false, cur = null, unsub = [], unM = [];
 
 function el(tag, text, cls) {
   const e = document.createElement(tag);
@@ -297,6 +325,7 @@ function td(c, cls) {
 const DF = [{ key: 'name', label: 'اسم المتبرع', req: true }, { key: 'amount', label: 'المبلغ', num: true }];
 const PF = [{ key: 'name', label: 'اسم الصيدلية', req: true }, { key: 'amount', label: 'المبلغ المدفوع', num: true }];
 const BF = [{ key: 'name', label: 'اسم المستفيد', req: true }, { key: 'notes', label: 'ملاحظات' }];
+const RF = [{ key: 'name', label: 'اسم المتبرع', req: true }, { key: 'monthly', label: 'المبلغ الشهري (0 للإيقاف)', num: true }, { key: 'balance', label: 'الرصيد المتبقي', num: true }];
 const MF = [{ key: 'drugName', label: 'اسم الدواء', req: true }, { key: 'qty', label: 'الكمية', num: true, pos: true }, { key: 'price', label: 'سعر الوحدة', num: true }];
 
 async function edit(ref, d, fields) {
@@ -321,12 +350,12 @@ function actCell(...btns) { const d = el('div', undefined, 'acts edit-only'); bt
 function tr(...cells) { const r = el('tr'); cells.forEach(c => r.appendChild(c)); return r; }
 
 function showTab(t) {
-  ['about', 'don', 'acc', 'ben'].forEach(k => {
+  ['about', 'don', 'res', 'acc', 'ben'].forEach(k => {
     $('pane-' + k).hidden = k !== t;
     $('tab-' + k).setAttribute('aria-selected', k === t);
   });
 }
-['about', 'don', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
+['about', 'don', 'res', 'acc', 'ben'].forEach(k => { $('tab-' + k).onclick = () => showTab(k); });
 
 /* الدخول */
 let adminMode = false;
@@ -352,7 +381,7 @@ $('btnOut').onclick = () => auth.signOut();
 function stop() {
   unsub.forEach(f => f()); unM.forEach(f => f());
   unsub = []; unM = []; cur = null;
-  bens = []; donors = []; meds = []; pharms = [];
+  bens = []; donors = []; meds = []; pharms = []; reserve = [];
 }
 async function start(user) {
   let admin = false;
@@ -371,10 +400,15 @@ async function start(user) {
     bens = s.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
     render();
   }, () => { $('blist').textContent = 'تعذّر تحميل المستفيدين.'; }));
+  if (admin) unsub.push(db.collection('reserve').orderBy('name').onSnapshot(s => {
+    reserve = s.docs.map(d => ({ id: d.id, ref: d.ref, ...d.data() }));
+    render();
+    maybeAuto();
+  }, () => {}));
   watchMonth();
 }
 function watchMonth() {
-  unM.forEach(f => f()); unM = []; donors = []; meds = []; pharms = [];
+  unM.forEach(f => f()); unM = []; donors = []; meds = []; pharms = []; runLoaded = false; runExists = false;
   render();
   const m = month();
   if (!m) return;
@@ -392,6 +426,9 @@ function watchMonth() {
       .sort((a, b) => (a.createdAt?.seconds || 1e12) - (b.createdAt?.seconds || 1e12));
     render();
   }));
+  if (adminMode) unM.push(db.collection('reserveRuns').doc(m).onSnapshot(sn => {
+    runExists = sn.exists; runLoaded = true; maybeAuto();
+  }, () => {}));
 }
 $('sm').onchange = watchMonth;
 
@@ -402,8 +439,8 @@ function render() {
 
   const T = $('dtb'); T.textContent = '';
   donors.forEach(d => T.appendChild(tr(
-    td(d.name), td(fmt(d.amount), 'num'),
-    td(actCell(btn('تعديل', () => edit(d.ref, d, DF)), btn('حذف', () => { if (confirm('حذف ' + d.name + '؟')) d.ref.delete(); })))
+    td(d.name + (d.reserveId && adminMode ? ' (احتياطي)' : '')), td(fmt(d.amount), 'num'),
+    d.reserveId ? td('') : td(actCell(btn('تعديل', () => edit(d.ref, d, DF)), btn('حذف', () => { if (confirm('حذف ' + d.name + '؟')) d.ref.delete(); })))
   )));
   if (!donors.length) T.appendChild(tr(td('لا يوجد متبرعون في هذا الشهر.')));
   $('dtot').textContent = fmt(D);
@@ -415,6 +452,20 @@ function render() {
   )));
   if (!pharms.length) PT.appendChild(tr(td('لم تُسجَّل صيدليات في هذا الشهر.')));
   $('ptot').textContent = fmt(P);
+
+  const RT = $('rtb'); RT.textContent = '';
+  reserve.forEach(r => RT.appendChild(tr(
+    td(r.name), td(fmt(r.balance), 'num'), td(fmt(r.monthly), 'num'),
+    td(actCell(
+      btn('+ رصيد', () => addBalance(r)),
+      btn('تعديل', () => edit(r.ref, r, RF)),
+      btn('حذف', () => { if (confirm('حذف ' + r.name + ' من الاحتياطي؟')) r.ref.delete(); })
+    ))
+  )));
+  if (!reserve.length) RT.appendChild(tr(td('لا يوجد متبرعون في الاحتياطي بعد.')));
+  $('rtot').textContent = fmt(reserve.reduce((t, x) => t + (Number(x.balance) || 0), 0));
+  const nres = donors.filter(d => d.reserveId).length;
+  $('rstat').textContent = nres ? 'طُبّق الاحتياطي على هذا الشهر (' + nres + ' متبرع).' : 'لم يُطبَّق الاحتياطي على هذا الشهر بعد.';
 
   const R = D - P;
   $('s1').textContent = fmt(D);
@@ -578,15 +629,114 @@ $('btnDelAll').onclick = async () => {
   if (!donors.length) { alert('لا يوجد متبرعون في هذا الشهر.'); return; }
   const list = donors.slice(), n = list.length;
   if (!confirm('سيتم حذف ' + n + ' متبرع من شهر ' + month() + ' نهائياً. هل أنت متأكد؟')) return;
-  if (!confirm('تأكيد أخير: لا يمكن التراجع عن الحذف. حذف جميع المتبرعين؟')) return;
+  if (!confirm('تأكيد أخير: لا يمكن التراجع عن الحذف (وتعود مبالغ الاحتياطي إلى أرصدة أصحابها). حذف جميع المتبرعين؟')) return;
   try {
-    for (let i = 0; i < list.length; i += 400) {
+    if (list.some(d => d.reserveId)) await undoReserve(month());
+    const q = await db.collection('donations').where('month', '==', month()).get();
+    const docs = q.docs;
+    for (let i = 0; i < docs.length; i += 400) {
       const b = db.batch();
-      list.slice(i, i + 400).forEach(d => b.delete(d.ref));
+      docs.slice(i, i + 400).forEach(d => b.delete(d.ref));
       await b.commit();
     }
     toast('تم حذف ' + n + ' متبرع');
   } catch (e) { alert('تعذّر الحذف. تحقق من الاتصال.'); }
+};
+
+/* الاحتياطي */
+function maybeAuto() {
+  if (!adminMode || applying || !runLoaded || runExists) return;
+  if (month() !== new Date().toISOString().slice(0, 7)) return;
+  if (!reserve.some(r => (Number(r.balance) || 0) > 0 && (Number(r.monthly) || 0) > 0)) return;
+  applyReserve(month(), true);
+}
+
+async function applyReserve(m, auto) {
+  if (applying) return;
+  applying = true;
+  let n = 0, total = 0;
+  try {
+    await db.runTransaction(async tx => {
+      n = 0; total = 0;
+      const snaps = await Promise.all(reserve.map(r => tx.get(r.ref)));
+      const base = Date.now();
+      snaps.forEach((sn, i) => {
+        if (!sn.exists) return;
+        const d = sn.data();
+        const bal = Number(d.balance) || 0, mo = Number(d.monthly) || 0;
+        const amt = Math.min(mo, bal);
+        if (d.lastMonth === m || amt <= 0) return;
+        tx.set(db.collection('donations').doc(), {
+          month: m, name: d.name, amount: amt, reserveId: sn.id,
+          createdAt: firebase.firestore.Timestamp.fromMillis(base + i)
+        });
+        tx.update(sn.ref, { balance: bal - amt, lastMonth: m });
+        n++; total += amt;
+      });
+      tx.set(db.collection('reserveRuns').doc(m), { month: m, count: n, at: stamp() });
+    });
+    if (n) toast('أُضيف ' + n + ' متبرع من الاحتياطي (' + fmt(total) + ') ✓');
+    else if (!auto) toast('لا يوجد ما يُطبَّق: الجميع مُطبَّق أو رصيده منتهٍ.');
+  } catch (e) { toast('تعذّر تطبيق الاحتياطي. تحقق من الاتصال.'); }
+  applying = false;
+}
+
+async function undoReserve(m) {
+  const q = await db.collection('donations').where('month', '==', m).get();
+  const mine = q.docs.filter(d => d.data().reserveId);
+  await db.runTransaction(async tx => {
+    const sums = {};
+    mine.forEach(d => { const x = d.data(); sums[x.reserveId] = (sums[x.reserveId] || 0) + (Number(x.amount) || 0); });
+    const ids = Object.keys(sums);
+    const snaps = await Promise.all(ids.map(id => tx.get(db.collection('reserve').doc(id))));
+    mine.forEach(d => tx.delete(d.ref));
+    snaps.forEach((sn, i) => {
+      if (!sn.exists) return;
+      const d = sn.data();
+      tx.update(sn.ref, { balance: (Number(d.balance) || 0) + sums[ids[i]], lastMonth: d.lastMonth === m ? null : (d.lastMonth || null) });
+    });
+    tx.set(db.collection('reserveRuns').doc(m), { month: m, undone: true, at: stamp() });
+  });
+  return mine.length;
+}
+
+async function addBalance(r) {
+  const v = prompt('المبلغ المراد إضافته إلى رصيد ' + r.name, '');
+  if (v === null) return;
+  const n = parseFloat(v.trim());
+  if (isNaN(n) || n <= 0) { alert('قيمة غير صالحة.'); return; }
+  try {
+    await r.ref.update({
+      balance: firebase.firestore.FieldValue.increment(n),
+      deposited: firebase.firestore.FieldValue.increment(n)
+    });
+    toast('تمت إضافة الرصيد ✓');
+  } catch (e) { alert('تعذّر الحفظ. تحقق من الاتصال.'); }
+}
+
+$('btnRes').onclick = async () => {
+  const name = $('rn').value.trim(), amount = parseFloat($('ra').value), monthly = parseFloat($('rm').value);
+  $('rerr').textContent = '';
+  if (!name || isNaN(amount) || amount < 0 || isNaN(monthly) || monthly < 0) { $('rerr').textContent = 'اكتب الاسم والمبلغ المودَع والمبلغ الشهري.'; return; }
+  if (!confirm('تأكيد الحفظ:\nالمتبرع: ' + name + '\nالمودَع: ' + fmt(amount) + '\nالشهري: ' + fmt(monthly))) return;
+  try {
+    await db.collection('reserve').add({ name, balance: amount, deposited: amount, monthly, lastMonth: null, createdAt: stamp() });
+    $('rn').value = $('ra').value = '';
+    toast('تمت الإضافة إلى الاحتياطي ✓');
+  } catch (e) { $('rerr').textContent = 'تعذّر الحفظ. تحقق من الاتصال.'; }
+};
+
+$('btnResApply').onclick = async () => {
+  if (!confirm('سيُضاف إلى قائمة متبرعي شهر ' + month() + ' كل من في الاحتياطي ولم يُطبَّق عليه هذا الشهر، ويُخصم من رصيده. متابعة؟')) return;
+  await applyReserve(month(), false);
+};
+
+$('btnResUndo').onclick = async () => {
+  if (!confirm('سيُحذف من شهر ' + month() + ' كل ما أُضيف من الاحتياطي وتعود مبالغه إلى أرصدة أصحابها. متابعة؟')) return;
+  try {
+    const n = await undoReserve(month());
+    toast(n ? 'تم التراجع عن ' + n + ' متبرع من الاحتياطي' : 'لا يوجد ما يُتراجع عنه');
+  } catch (e) { alert('تعذّر التراجع. تحقق من الاتصال.'); }
 };
 
 $('btnPh').onclick = async () => {
